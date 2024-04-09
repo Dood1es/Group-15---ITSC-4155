@@ -1,0 +1,2272 @@
+<!DOCTYPE html>
+<html>
+    <link rel = "stylesheet" href="styles.css">
+    <head>
+        <script type = "text/javascript" src = "https://d3js.org/d3.v7.min.js"></script>
+        <script type = "text/javascript" src = "https://d3js.org/topojson.v3.min.js"></script>
+    </head>
+    <body>
+
+        <div class="parking-type-container">
+                <label for="parking-type-selector">Start Year</label>
+                <select id="parking-type-selector">
+                    <option class="type-option" value=2010>2010</option>
+                    <option class="type-option" value=2011>2011</option>
+                    <option class="type-option" value=2012>2012</option>
+                    <option class="type-option" value=2013>2013</option>
+                    <option class="type-option" value=2014>2014</option>
+                    <option class="type-option" value=2015>2015</option>
+                    <option class="type-option" value=2016>2016</option>
+                    <option class="type-option" value=2017>2017</option>
+                    <option class="type-option" value=2018>2018</option>
+                    <option class="type-option" value=2019>2019</option>
+                </select>
+            </div>
+
+        <div class="parking-type-container2">
+                <label for="parking-type-selector2">End Year</label>
+                <select id="parking-type-selector2">
+                    <option class="type-option" value=2010>2010</option>
+                    <option class="type-option" value=2011>2011</option>
+                    <option class="type-option" value=2012>2012</option>
+                    <option class="type-option" value=2013>2013</option>
+                    <option class="type-option" value=2014>2014</option>
+                    <option class="type-option" value=2015>2015</option>
+                    <option class="type-option" value=2016>2016</option>
+                    <option class="type-option" value=2017>2017</option>
+                    <option class="type-option" value=2018>2018</option>
+                    <option class="type-option" value=2019 selected>2019</option>
+                </select>
+            </div>
+
+        <script>
+            /* START OF CONTROLS */
+            const defaultValues = {
+                chosenYear: 2010,
+                chosenState: "Alaska",
+                startYear: 2010,
+                endYear: 2019,
+                chosenStat: "Violent-Crime"
+            }
+
+            // Controls for changing the main SVG.
+            const svg = {
+
+                // ID of the SVG element
+                id: "main-svg",
+
+                // Width of the SVG space.
+                width: 2500,
+
+                // Height of the SVG space.
+                height: 1500,
+
+                // Background Color of the rectangle sitting at the top of the SVG
+                mainBackGroundColor: `rgb(150, 150, 150)`,
+
+                // Border Color of the rectangle sitting at the top of the SVG
+                mainBorderColor: `rgb(0, 0, 0)`,
+
+                generateSubContainer: function(id, width, height, xOffset, yOffset, backgroundColor, borderColor) {
+                    return {
+                        // HTML ID to reference the group sub-container
+                        gId: id,
+
+                        // Width of the sub-container.
+                        width: width,
+
+                        // Height of the sub-container.
+                        height: height,
+
+                        // xOffset within the SVG of the sub-container.
+                        xOffset: xOffset,
+
+                        // yOffset within the SVG of the sub-container.
+                        yOffset: yOffset,
+
+                        // Background color of the sub-container.
+                        backgroundColor: backgroundColor,
+
+                        // Border color of the sub-container.
+                        borderColor: borderColor
+                    }
+                }
+            };
+
+            // Controls for changing the choropleth visualization, not the container itself!
+            const choropleth = {
+
+                // Selected year fill color.
+                selectYearFill: `rgb(255,165,0)`,
+
+                // Unselected year fill color.
+                unSelectYearFill: `rgb(125,125,125)`,
+
+                // Defines the initial border color between the states.
+                stateInitialBorderColor: `rgb(255,0,0)`,
+
+                // Defines the thickness of the borders between the states.
+                stateBorderThickness: 1,
+
+                // Defines the initial Color of the states.
+                stateInitialColor: `rgb(0,150,0)`,
+
+                // Defines the X shift of the states within the container.
+                stateXShift: 10,
+
+                // Defines the Y shift of the states within the container.
+                stateYShift: 0,
+
+                // Defines the % of width the projection can take up within its container.
+                stateWidthPer: 0.98,
+
+                // Defines the % of height the projection can take up within its container.
+                stateHeightPer: 1.00
+
+            }
+
+            // Controls that govern how all the horizontal bar charts will behave.
+            const generalHBar = {
+                xOffset: 77,
+                y1Offset: 25,
+                y2Offset: 23,
+                lineColor: `rgb(0,0,0)`,
+                lineWidth: 2,
+                stateTextXOffset: -3,
+                statePercentageXOffset: 10,
+                barHeight: 9,
+                barSpace: 11,
+                barBorderColor: `rgb(175, 0, 0)`,
+
+                xAxisSize: 265
+            }
+
+            /* END OF CONTROLS */
+            /* START OF GLOBAL VARIABLES & CONSTANTS */
+
+            // Map that holds a snapshot for every state at every year.
+            const visData = new Map();
+
+            let currStartYearSelection = defaultValues.startYear
+            let currEndYearSelection = defaultValues.endYear
+            let currSelectedYear = defaultValues.chosenYear
+            let currChosenState = defaultValues.chosenState
+            let currChosenStat = defaultValues.chosenStat
+
+            // Object that defines the container for the US choropleth map.
+            const choroplethContainer = svg.generateSubContainer("us-choropleth", 900, 610, 0, 0, `rgb(0,94,184)`, `rgb(0, 0, 0)`)
+            const selectedOutgoingHBarContainer = svg.generateSubContainer("select-outgoing-Migration", 390, 610, 903, 0, `rgb(225,225,225)`, `rgb(0, 0, 0)`)
+            const selectedIncomingHBarContainer = svg.generateSubContainer("select-incoming-Migration", 390, 610, 1296, 0, `rgb(225,225,225)`, `rgb(0, 0, 0)`)
+            const USOutgoingHBarContainer = svg.generateSubContainer("US-outgoing-Migration", 390, 610, 1689, 0, `rgb(225,225,225)`, `rgb(0, 0, 0)`)
+            const USIncomingHBarContainer = svg.generateSubContainer("US-incoming-Migration", 390, 610, 2082, 0, `rgb(225,225,225)`, `rgb(0, 0, 0)`)
+
+            /* END OF GLOBAL VARIABLES & CONSTANTS */
+            /* START OF PROGRAM */
+
+            // Start the program by loading in the data, preparing it for processing.
+            loadData(['datafiles/us_states_data.json', // file[0]
+                'datafiles/Migration_Flows_from_2010_to_2019.csv', // file[1]
+                'datafiles/state_crime.csv', // file[2]
+                'datafiles/average_monthly_temperature_by_state_1950-2022.csv', // file[3]
+                'datafiles/State_Taxes.csv', // file[4]
+                'datafiles/Unemployment in America Per US State.csv', // file[5]
+                'datafiles/fbc_data_2022_county.csv', // file[6]
+                'datafiles/us_postal_codes.csv' //file[7]
+            ])
+
+            // This function will ensure that we load all outside data successfully.
+            function loadData (url=[]) {
+
+                // Array that will hold all of our promises.
+                let promises = []
+
+                // For each URL we will:
+                // - What extension it has.
+                // - Perform the appropriate d3 data extraction based on the extension.
+                url.forEach((currURL) => {
+
+                    // Variable that holds the current extension
+                    let currExt = currURL.slice(currURL.indexOf('.'))
+
+                    // Create a switch that appends a new promise based on the extension being called.
+                    switch (currExt) {
+                        case '.json':
+                            promises.push(new Promise( (resolve, reject) => {
+                                // Attempt to load in the data.
+                                let loadedData = d3.json(currURL)
+
+                                // If we failed to load in the data (Which we are classifying as an empty dataset)
+                                // then we send a rejection. Else, resolve with the loaded data.
+                                if (loadedData.length === 0) reject(`Failed to Load Data: ${url[i]}`)
+                                else resolve(loadedData)
+                            }))
+                            break
+                        case '.csv':
+                            promises.push(new Promise( (resolve, reject) => {
+                                // Attempt to load in the data.
+                                let loadedData = d3.csv(currURL)
+
+                                // If we failed to load in the data (Which we are classifying as an empty dataset)
+                                // then we send a rejection. Else, resolve with the loaded data.
+                                if (loadedData.length === 0) reject(`Failed to Load Data: ${url[i]}`)
+                                else resolve(loadedData)
+                            }))
+                            break
+                        default: console.log(`Undefined case for: "${currExt}"`)
+                    }
+                })
+
+                // Once the forEach loop has finished running, test to see that all promises resolved (loaded all data).
+                // If so, the program will send the raw data to the drawGeo() function.
+                // If not, the program will halt.
+                Promise.all(promises).then((file) => processData(file))
+            }
+
+            // This function will process the loaded data into the visData map.
+            function processData(file) {
+
+                // Arrays for our data
+                var migrationInfo = [];
+                var crimeInfo = [];
+                var weatherInfo = [];
+                var taxInfo = [];
+                var employmentInfo = [];
+                var costOfLiving = [];
+
+                // Normalized arrays for our data
+                var normMigrationInfo = [];
+                var normCrimeInfo = [];
+                var normWeatherInfo = [];
+                var normTaxInfo = [];
+                var normEmploymentInfo = [];
+                var normCostOfLiving = [];
+
+                // Anonymous function to normalize arrays between 0 and 1
+                // Year and month are also normalized, use original arrays for year and month,
+                // Both arrays have the same keys and lengths
+                // Function also makes sure Strings are ignored in normalization
+                const normalize = (arrToNorm, newArr) => {
+                    var column = 0;
+                    var max = [];
+                    var min = [];
+                    keyArray = Object.keys(arrToNorm[0]);
+                    key = String(keyArray[column]);
+                    while(column < keyArray.length){
+                        for(let i = 0; i < arrToNorm.length; i++){
+                            if(typeof arrToNorm[i][key] == 'string'){
+                                column++;
+                                key = String(keyArray[column]);
+                                i=0;
+                            }else{
+                                max.push(arrToNorm[i][key]);
+                                min.push(arrToNorm[i][key]);
+                            }
+                        }
+
+                        var maxVal = Math.max(...max);
+                        var minVal = Math.min(...min);
+
+                        for(let i = 0; i < arrToNorm.length; i++){
+                                var normVal = (arrToNorm[i][key] - minVal)/(maxVal-minVal);
+                                newArr[i][key] = normVal;
+                            }
+                        max = [];
+                        min = [];
+                        column++;
+                        key = String(keyArray[column]);
+                    }
+                }
+
+                // Migration array population
+                for(let i = 0; i < file[1].length; i++){
+                    var dict = {
+                        state: String(file[1][i].current_state),  // Current state
+                        year: parseInt(file[1][i].year),                   // Current year
+                        population: parseInt(file[1][i].population),       // Current state and year population
+                        fromDiffState: parseInt(file[1][i].from_different_state_Total), // Number of people migrating to state from a different state
+                        fromAbroad: parseInt(file[1][i].abroad_Total),                  // Number of people migrating to state from abroad
+                        from: String(file[1][i].from),                                // State where people migrated
+                        numPeopleFrom: parseInt(file[1][i].number_of_people)        // Number of people from said state above
+                    };
+                    migrationInfo.push(dict);
+                    normMigrationInfo.push(JSON.parse(JSON.stringify(dict)));
+                };
+
+                // Crime array population
+                for(let i = 0; i < file[2].length; i++){
+                    if(parseInt(file[2][i].Year) >= 2010){ // Ignores anything before 2010
+                        var dict = {
+                            state: String(file[2][i].State), // State for crime rates
+                            year: parseInt(file[2][i].Year),  // Year for crime rates
+                            propCrimRate: parseFloat(file[2][i].Data_Rates_Property_All),  // Property crime rates per 100,000
+                            vioCrimRate: parseFloat(file[2][i].Data_Rates_Violent_All)  // Violent crime rates per 100,000
+                        };
+                        crimeInfo.push(dict);
+                        normCrimeInfo.push(JSON.parse(JSON.stringify(dict)));
+                    };
+                };
+
+                // Weather array population
+                for(let i = 0; i < file[3].length; i++){
+                    if(parseInt(file[3][i].year) >= 2010 && parseInt(file[3][i].year) <= 2019){
+                        var dict = {
+                            state: String(file[3][i].state), // State for year and month temp
+                            month: parseInt(file[3][i].month), // Month of the year ex.01 = january
+                            year: parseInt(file[3][i].year),  // Year for average
+                            avgTemp: parseFloat(file[3][i].average_temp)  // Average temperature for the month of the year
+                        };
+                        weatherInfo.push(dict);
+                        normWeatherInfo.push(JSON.parse(JSON.stringify(dict)));
+                    };
+                };
+
+                // Taxes array population
+                for(let i =0; i < file[4].length; i++){
+                    if( parseInt(file[4][i].year) <= 2019){
+                        var dict = {
+                            state: String(file[4][i].State),    // State for the tax rates by year
+                            year: parseInt(file[4][i].year),    // Year of tax rates
+                            incomeTax: parseFloat(file[4][i].Pers_Rate_Adj),  // Highest personal income tax rate by state
+                            salesTax: parseFloat(file[4][i].Sales_Rate_Adj) // Highest Sales tax rate by state
+                        };
+                        taxInfo.push(dict);
+                        normTaxInfo.push(JSON.parse(JSON.stringify(dict)));
+                    };
+                };
+
+                // Employment array population
+                for(let i =0; i < file[5].length; i++){
+                    if(parseInt(file[5][i].Year) >= 2010 && parseInt(file[5][i].Year) <= 2019){
+                        var dict = {
+                            state: String(file[5][i].State_Area),  // State for employment rates
+                            year: parseInt(file[5][i].Year),  // Year for employment rates
+                            month: parseInt(file[5][i].Month),  // Month of the year for employment rates
+                            employed: parseInt(file[5][i].Total_Employment.replace(/,/g, '')),  // Total employed in state
+                            umemployed: parseInt((file[5][i].Total_Unemployment).replace(/,/g, '')),  // Total unemployed in state
+                            percentEmp: parseFloat(file[5][i].Percent_Employed),  // Percent of total employed in state
+                            percentUnemp: parseFloat(file[5][i].Percent_Unemployed)  // Percent of total unemployed in state
+                        };
+                        employmentInfo.push(dict);
+                        normEmploymentInfo.push(JSON.parse(JSON.stringify(dict)));
+                    };
+                };
+
+                // Function calculates the median values of each state
+                function medianCostOfLiving() {
+                    totalArr = [];
+                    for (let i = 0; i < file[6].length; i++) {
+                        var state = String(file[6][i].State_abv);
+                        var total = parseInt(file[6][i].A_Total.replace("$", "").replace(",", ""));
+
+                        if (i > 0 && state === costOfLiving[costOfLiving.length-1].state) {
+                            totalArr.push(total);
+                        }else{
+
+                            var sortedArr = totalArr.sort((a, b) => a - b);
+                            var midIndex = Math.floor(totalArr.length / 2);
+                            var median = sortedArr[midIndex];
+
+                            var dict = {
+                                state: state,  // State abreviation
+                                total: median  // total median values
+                            };
+
+                            costOfLiving.push(dict);
+                            totalArr = [];
+                        }
+                    }
+                    for(let i = 0; i < costOfLiving.length-1; i++){
+                        costOfLiving[i].total = costOfLiving[i+1].total;
+                    }
+                    // Manually calculated and entered median total for 'WY'
+                    costOfLiving[costOfLiving.length - 1].total = 82655;
+                    normCostOfLiving = JSON.parse(JSON.stringify(costOfLiving));
+                }
+                medianCostOfLiving();
+
+                // Postal map that will convert the abbreviated symbols of states to their full name.
+                var postalToState = new Map();
+
+                // For each object in the file, send it to the postalToState map.
+                file[7].forEach((code) => {
+                    postalToState.set(code.postal_code, code.state)
+                })
+
+                // Function calls to create normalized arrays
+                normalize(migrationInfo, normMigrationInfo);
+                normalize(crimeInfo, normCrimeInfo);
+                normalize(weatherInfo, normWeatherInfo);
+                normalize(taxInfo, normTaxInfo);
+                normalize(employmentInfo, normEmploymentInfo);
+                normalize(costOfLiving, normCostOfLiving);
+
+                // Now we will prepare a time-series for each state (including DC) by year.
+                // What follows is a construction of the visData map:
+                /*
+                    (KEY - STRING) : (VALUE - MAP())
+                    State : Map of Years
+
+                        (KEY - INT) : (VALUE - OBJ{})
+                        Year : Snapshot
+
+                        MAP(
+                        AK,
+                            MAP(
+                            2010
+                                Snapshot
+                            2011
+                            ...
+                            2019
+                        NY,
+                        CA,
+                        .....
+
+                    Snapshot structure:
+                    Snapshot {
+                        year: year of the snapshot
+                        stateName: Name of the state
+                        population: Population at the time
+                        
+                        fromDiffStatePop: Population that came from a different state within the last year.
+                        fromAbroadPop: Like the above, but people who came from abroad. Is *NOT* a subset of fromDiffStatePop
+
+                        arrivedFromStates: Map() consisting of the population of people who arrived from different states.
+                            Each key:value pair is the state they came from and how many that did. Does not include those who arrived from Abroad as it is already counted by fromAbroadPop.
+                        leftToStates: Map() consisting of the population of people who left to different states. [Will be a bit tricky to do, but not impossible]
+                            Each key:value pair is the state they left to and how many went. Should be noted that this number is *not* included in the population snapshot!
+
+                        leftToStatesTotal: Population that left the state, based on the total of LeftByState.
+
+                        violentCrimeCapita: What it says on the tin.
+
+                        propertyCrimeCapita: What it says on the tin.
+
+                        tempInfo: size-12 array that has the average temperatures of the state by month. (0 = jan, 12 = dec)
+
+                        incomeTax: hmmm
+
+                        salesTax: hmmmm
+
+                        unemploymentInfo: size-12 array (0 = jan, 12 = dec) by month. Each index holds an object consisting of:
+                            - Total employed in state
+                            - Total unemployed in state
+                            - Percentages of each
+
+                        //normalized data will be dragged in as needed\\
+                        medianAnnualCost: the median annual cost to live a modest life within the state. Adjusted by inflation.
+                    }
+
+                */
+
+                /* DEBUG */
+                // console.log(migrationInfo);
+                // console.log(normMigrationInfo);
+                // console.log(crimeInfo);
+                // console.log(normCrimeInfo);
+                // console.log(weatherInfo);
+                // console.log(normWeatherInfo);
+                // console.log(taxInfo);
+                // console.log(normTaxInfo);
+                // console.log(employmentInfo);
+                // console.log(normEmploymentInfo);
+                // console.log(costOfLiving);
+                // console.log(normCostOfLiving);
+
+                // An anonymous function that will return a unique set of values within a passed array.
+                const findUniques = (array) => {
+
+                    // Performing the union of a set of values on itself will return the distinct values within it.
+                    return d3.union(array, array);
+                }
+
+                // Array containing the unique set of state name from the migration dataset
+                let uniqueStates = Array.from(findUniques(d3.map(migrationInfo, (obj) => obj.state))["_intern"].values())
+
+                // Hotfix for District of Columbia (has a space at the end of name)
+                uniqueStates[8] = "District of Columbia"
+
+                // Base template that defines how a snapshot is constructed
+                const snapShotDataTemplate = {
+
+                    year: null, // Year of the snapshot
+                    state: null, // Name of the state.
+                    stateHTMLID: null, // HTML ID of the state for retrieval.
+
+                    population: null, // Population of the state at the time of the year.
+
+                    fromDiffStatePop: null, // Portion of that population that came from a different state a year ago.
+                    fromAbroadPop: null, // Portion of that population that came from outside the 50 (plus DC) states.
+
+                    arrivedFromStates: null, // Map that shows which states people came from.
+                    leftToStates: null, // Map that shows what states the uncounted population left to for that year.
+                    
+                    leftToStatesTotal: null, // Total number of people who left the state that isn't counted in the population.
+
+                    violentCrimeCapita: null, // Rate of violent crime per 100,000 people.
+                    propertyCrimeCapita: null, // Rate of property crime per 100,000 people.
+
+                    monthlyTempAvg: null, // Size-12 array giving monthly temperature averages. index 0 = January - index 11 = December
+
+                    incomeTax: null, // Highest personal income tax rate in the state
+                    salesTax: null, // Highest Sales tax rate in the state
+
+                    unemploymentInfo: null, // Size-12 array detailing the employed/unemployed population and their percentages. index 0 = January - index 11 = December
+
+                    medianAnnualCost: null // Median annual cost to live in the state at that year, adjusted for inflation.
+                }
+
+                // Base template that governs how far back in time each dataset we must explore.
+                const yearsDataTemplate = [
+                                [2010, snapShotDataTemplate],
+                                [2011, snapShotDataTemplate],
+                                [2012, snapShotDataTemplate],
+                                [2013, snapShotDataTemplate],
+                                [2014, snapShotDataTemplate],
+                                [2015, snapShotDataTemplate],
+                                [2016, snapShotDataTemplate],
+                                [2017, snapShotDataTemplate],
+                                [2018, snapShotDataTemplate],
+                                [2019, snapShotDataTemplate]
+                ]
+
+                // Populate the snapshot map with all unique state names as the keys and general structure.
+                uniqueStates.forEach((currUState) => {
+
+                    // Build the data structure for each state as deep copies of the template supplied above.
+                    visData.set(currUState, new Map(JSON.parse(JSON.stringify(yearsDataTemplate))))
+
+                    // Grab the current state on the visData map.
+                    let currentStateMap = visData.get(currUState)
+
+                    // Iterating through each year of the selected unique state, fill out some of the snapshot information for each year.
+                    currentStateMap.forEach((currYearSnapshot) => {
+                        currYearSnapshot.state = currUState
+                        currYearSnapshot.stateHTMLID = currUState.replaceAll(' ', '-')
+                        currYearSnapshot.arrivedFromStates = new Map()
+                        currYearSnapshot.leftToStates = new Map()
+                        currYearSnapshot.monthlyTempAvg = new Array(12)
+                        currYearSnapshot.unemploymentInfo = new Array(12)
+                    })
+                })
+                
+                // Iterate through each migrationInfo object and assign information from it to the visData.
+                migrationInfo.forEach((migObj) => {
+
+                    // Extract the state name of the object
+                    let stateKey = migObj.state
+
+                    // Testing for the misspelled version DC in the objects.
+                    const testForDC = "District of Columbia "
+
+                    // If found, replace it with the correct name in order to extract the snapshot in visData.
+                    if (stateKey === testForDC) stateKey = "District of Columbia"
+
+                    // Extract the 'from' string as our key.
+                    let fromKey = migObj.from
+
+                    // If found, replace it with the correct name in order to extract the snapshot in visData.
+                    if (fromKey === testForDC) fromKey = "District of Columbia"
+
+                    // Grab the snapshot corresponding to the state and year of the object.
+                    let currSnapshot = visData.get(stateKey).get(migObj.year)
+
+                    // Now, with the current snapshot, we will begin filling in some of the information.
+                    currSnapshot.year = migObj.year
+                    currSnapshot.population = migObj.population
+                    currSnapshot.fromDiffStatePop = migObj.fromDiffState
+                    currSnapshot.fromAbroadPop = migObj.fromAbroad
+
+                    // Perform the following tests if the information in 'from' isn't from abroad [abroad_ForeignCountry, abroad_PuertoRico, abroad_USIslandArea]
+                    // Seeing how no other 'from' values has an underscore, we test for the presence of this using indexOf('_')
+                    if (migObj.from.indexOf("_") === -1){
+
+                        // Prepare the key that will be used to define and retrieve the values of entries in leftToStates.
+                        const fromHTMLIDKey = fromKey.replaceAll(' ', "-")
+
+                        // Test to see if the arrivedFromStates has the state (or place) defined in 'from'
+                        if (!currSnapshot.arrivedFromStates.has(fromHTMLIDKey)) {
+
+                            // If not, create a new entry using the 'from' as the key and 'numPeopleFrom' as the value.
+                            currSnapshot.arrivedFromStates.set(fromHTMLIDKey, migObj.numPeopleFrom)
+                        } else {
+                            // If so, take the value that is already present and add it onto the incoming value.
+                            currSnapshot.arrivedFromStates.set(fromHTMLIDKey, (currSnapshot.arrivedFromStates.get(fromHTMLIDKey) + migObj.numPeopleFrom))
+                        }
+                    }
+
+                    // Now, with the same migObj, we will use the 'from' to access the visObj again to add to the 'leftToStates' counter.
+
+                    // Test to see if the visData has the snapshot corresponding to the state in question.
+                    // If it doesn't, or the object is about Puerto Rico, move on.
+                    if (visData.has(fromKey) && migObj.state !== "Puerto Rico"){
+
+                        // Retrieve the snapshot corresponding to the given fromKey.
+                        currSnapshot = visData.get(fromKey).get(migObj.year)
+
+                        // Prepare the key that will be used to define and retrieve the values of entries in leftToStates.
+                        const stateHTMLIDKey = stateKey.replaceAll(' ', "-")
+
+                        // Test to see if the leftToStates has the state (or place) defined in 'state'
+                        if (!currSnapshot.leftToStates.has(stateHTMLIDKey)){
+
+                            // If not, create a new entry using the 'state', in HTML ID form, as the key and 'numPeopleFrom' as the value.
+                            currSnapshot.leftToStates.set(stateHTMLIDKey, migObj.numPeopleFrom)
+                        } else {
+                            // If so, take the value that is already present and add it onto the incoming value.
+                            currSnapshot.leftToStates.set(stateHTMLIDKey, (currSnapshot.leftToStates.get(stateHTMLIDKey) +  migObj.numPeopleFrom))
+                        }
+                    }
+
+                })
+
+                // Considering that we have no other databases beyond the migration info to visualize and correlate information for Puerto Rico,
+                // it is to be removed from the visData Map.
+                visData.delete("Puerto Rico")
+
+                // Now, iterate through each state.
+                visData.forEach((years) => {
+
+                    // Within each set of years for a state, iterate through its snapshots and calculate the number of people who left the state on that year.
+                    // In addition, calculate the relative percentage of people who left and went.
+                    years.forEach((snapshot) => {
+                        snapshot.leftToStatesTotal = d3.reduce(snapshot.leftToStates, (totalVal, stateVal) => totalVal + stateVal[1], 0)
+                        snapshot.leftToStatesPer = Math.round((snapshot.leftToStatesTotal / snapshot.population) * 10000) / 100
+                        snapshot.fromDiffStatePer = Math.round((snapshot.fromDiffStatePop / snapshot.population) * 10000) / 100
+                    })
+                })
+
+                // Iterate through each crimeInfo object and assign information from it to the visData.
+                crimeInfo.forEach((criObj) => {
+
+                    // So long as it isn't the information for the United States as a whole, continue.
+                    if (criObj.state !== 'United States') {
+
+                        // Grab the snapshot that matches the state and year of the crime object.
+                        let currSnapshot = visData.get(criObj.state).get(criObj.year)
+
+                        // Assign the violent crime capita rate.
+                        currSnapshot.violentCrimeCapita = criObj.vioCrimRate
+
+                        // Assign the property crime capita rate.
+                        currSnapshot.propertyCrimeCapita = criObj.propCrimRate
+                    }
+                })
+
+                // Iterate through each normCrimeInfo object and assign information from it to the visData.
+                normCrimeInfo.forEach((normCriObj) => {
+
+                    // Denormalize the year value.
+                    const deNormYearVal = normCriObj.year * (2019 - 2010) + 2010
+
+                    // So long as it isn't the information for the United States as a whole, continue.
+                    if (normCriObj.state !== 'United States') {
+
+                        // Grab the snapshot that matches the state and year of the crime object.
+                        let currSnapshot = visData.get(normCriObj.state).get(deNormYearVal)
+
+                        // Assign the violent crime capita rate.
+                        currSnapshot.normViolentCrimeCapita = normCriObj.propCrimRate
+
+                        // Assign the property crime capita rate.
+                        currSnapshot.normPropertyCrimeCapita = normCriObj.vioCrimRate
+                    }
+                })
+
+                // Iterate through each weatherInfo object and assign information from it to the visData.
+                weatherInfo.forEach((weaObj) => {
+
+                    // Grab the snapshot that matches the state and year of the weather object.
+                    let currSnapshot = visData.get(weaObj.state).get(weaObj.year)
+
+                    // Using the month value (minus 1), insert the avgTemp of the weaObj at the proper index.
+                    currSnapshot.monthlyTempAvg[weaObj.month - 1] = weaObj.avgTemp
+                })
+
+                // Iterate through each taxInfo object and assign information from it to the visData.
+                taxInfo.forEach((taxObj) => {
+
+                    // Grab the snapshot that matches the state and year of the tax object.
+                    let currSnapshot = visData.get(taxObj.state).get(taxObj.year)
+
+                    // Assign the income rate as a percentage.
+                    currSnapshot.incomeTax = taxObj.incomeTax / 100.00
+
+                    // Assign the sales rate as a percentage.
+                    currSnapshot.salesTax = taxObj.salesTax / 100.00
+                })
+
+                // Iterate through each employmentInfo object and assign information from it to the visData.
+                employmentInfo.forEach((empObj) => {
+
+                    // So long as the information isn't for Los Angeles County and New York City, continue.
+                    if (empObj.state !== 'Los Angeles County' && empObj.state !== 'New York city') {
+
+                        // Grab the snapshot that matches the state and year of the employment object.
+                        let currSnapshot = visData.get(empObj.state).get(empObj.year)
+
+                        // Prepare an employment object consisting of all the information found in empObj.
+                        // Using the month value (minus 1), insert the avgTemp of the weaObj at the proper index.
+                        currSnapshot.unemploymentInfo[empObj.month - 1] = {
+                            state: empObj.state,
+                            year: empObj.year,
+                            month: empObj.month,
+                            employed: empObj.employed,
+                            unemployed: empObj.umemployed,
+                            percentEmp: empObj.percentEmp,
+                            percentUnemp: empObj.percentUnemp,
+                        }
+                    }
+                })
+
+                // The EPI states that the FBC data of 2022 uses "2020 dollars"
+                // This means we need to use the average CPI of 2020 in order to perform our calculations.
+                // Retrieved from: https://data.bls.gov/timeseries/CUUR0000SA0
+                const avgCPIbyYear = new Map([
+                    [2020, 258.811],
+                    [2019, 255.657],
+                    [2018, 251.107],
+                    [2017, 245.120],
+                    [2016, 240.007],
+                    [2015, 237.017],
+                    [2014, 236.736],
+                    [2013, 232.957],
+                    [2012, 229.594],
+                    [2011, 224.939],
+                    [2010, 218.056],
+                ])
+
+                // Iterate through each costOfLiving object and assign information from it to the visData.
+                costOfLiving.forEach((costObj) => {
+
+                    // Convert the abbreviated name of the state to its full name.
+                    const stateName = postalToState.get(costObj.state);
+
+                    // Retrieve the years belonging to the state in question.
+                    const yearsToParse = visData.get(stateName)
+
+                    // For each year, adjust the value of costObj's value by referring to the inflation at the time.
+                    // The formula for calculating the dollar value of a previous year against 2020's year is:
+                    // Past Dollar Amount = Current Dollar Amount * Past Year's CPI Amount / Current Year's CPI
+                    yearsToParse.forEach((currSnapshot, pastYear) => currSnapshot.medianAnnualCost = Math.round(parseInt(costObj.total) * avgCPIbyYear.get(pastYear) / avgCPIbyYear.get(2020)))
+
+                })
+
+                // Leave this function, de-referencing all objects that aren't included in the visData map.
+                initialDraw(file[0])
+            }
+
+            function initialDraw(geoData) {
+
+                // Generate the SVG.
+                generateSVG()
+
+                // Draw the US map for the first time.
+                initialDrawChoropleth(geoData)
+
+                // Draw the selectOutgoingHBar.
+                drawSelectOutgoingHBar()
+
+                // Draw the selectIncomingHBar.
+                drawSelectIncomingHBar()
+
+                // Draw the USOutgoingHBar.
+                drawUSOutgoingHBar()
+
+                // Draw the USIncomingHBar.
+                drawUSIncomingHBar()
+
+                // Fire this off for the first time.
+                readjustChoroplethColor()
+
+                crimeLineGraph(currChosenState, currStartYearSelection, currEndYearSelection)
+
+                CoLLineGraph(currChosenState, currStartYearSelection, currEndYearSelection)
+
+                employmentGraph(currChosenState, currStartYearSelection, currEndYearSelection)
+            }
+
+            // Function by which to create the initial SVG element with basic formatting.
+            function generateSVG () {
+
+                // Select the body element.
+                d3.select("body")
+
+                    // Append an SVG element to the body element. Give the SVG an ID for future retrieval.
+                    // Also, define the total space of the SVG itself.
+                    .append('svg')
+                    .attr('id', svg.id)
+                    .attr('width', svg.width)
+                    .attr('height', svg.height)
+
+                    // As the first element within the SVG, place a rectangle element. This element will color the space of the SVG.
+                    .append('rect')
+                    .attr('width', svg.width)
+                    .attr('height', svg.height)
+                    .attr('fill', svg.mainBackGroundColor)
+                    .attr('stroke', svg.mainBorderColor)
+
+                d3.select('body')
+                    .append('textarea')
+                    .attr('id', 'Emptextbox')
+                    .attr('readonly', true)
+                    .attr('cols', 25)
+                    .style('resize', "none")
+                    .style('position', "relative")
+                    .style('left', "800px")
+                    .style('bottom', "525px")
+            }
+
+            // Function by which to draw the US Choropleth map for the first time.
+            function initialDrawChoropleth(geojson) {
+
+                // Prepare the sub-container for the choropleth.
+                let subContainer = prepareSubContainer(choroplethContainer)
+
+                // Prepare more categories!
+                const stats = ['Violent-Crime', 'Property-Crime', 'Cost-Of-Living', 'Emigrated', 'Immigrated']
+                const colors = ['rgb(175,25,25)', 'rgb(75,0,130)', 'rgb(51,51,0)', 'rgb(0,0,200)', 'rgb(0,125,0)']
+
+                for (let i = 0; i < stats.length; i++){
+                    let statContainer = subContainer.append(`g`)
+                    statContainer.append('rect')
+                        .attr('category', stats[i])
+                        .attr('id', stats[i])
+                        .attr('x', 650)
+                        .attr('y', 25 + (i * 30))
+                        .attr('width', 110)
+                        .attr('height', 25)
+                        .attr('fill', choropleth.unSelectYearFill)
+                        .attr('stroke', 'black')
+                        .attr('stroke-width', 2)
+                        .on('click', adjustChoropleth)
+
+                    statContainer.append('rect')
+                        .attr('x', 765)
+                        .attr('y', 25 + (i * 30))
+                        .attr('width', 25)
+                        .attr('height', 25)
+                        .attr('fill', colors[i])
+                        .attr('stroke', 'black')
+                        .attr('stroke-width', 2)
+
+                    statContainer.append('text')
+                        .attr('text-anchor', 'middle')
+                        .attr('category', stats[i])
+                        .attr('x', 705)
+                        .attr('y', 42 + (i * 30))
+                        .html(stats[i])
+                        .style('user-select', 'none')
+                        .on('click', adjustChoropleth)
+                }
+
+                // Draw the gradient legend
+                for(let i = 10; i >= 0; i--) {
+                    subContainer
+                        .append('rect')
+                        .attr('class', "gradient")
+                        .attr('value', i/10.0)
+                        .attr('x', 800)
+                        .attr('y', 400 + ((10-i) * 10))
+                        .attr('width', 25)
+                        .attr('height', 10)
+                        .attr('fill', choropleth.stateInitialColor)
+                }
+                // Label for High
+                subContainer
+                    .append('text')
+                    .attr('font-size', "1em")
+                    .attr('x', 795)
+                    .attr('y', 395)
+                    .html(`High`)
+
+                // Label for Low
+                subContainer
+                    .append('text')
+                    .attr('font-size', "1em")
+                    .attr('x', 796)
+                    .attr('y', 525)
+                    .html(`Low`)
+
+                // Highlight the current default stat.
+                d3.select(`#${currChosenStat}`)
+                    .attr('fill', choropleth.selectYearFill)
+
+
+                let j = 0;
+                for (let currYear = 2010; currYear <= 2019; currYear++) {
+                let yearContainer = subContainer.append(`g`)
+                    yearContainer.append('rect')
+                        .attr('year', currYear)
+                        .attr('id', `Y${currYear}`)
+                        .attr('x', 25 + (j * 55))
+                        .attr('y', 25)
+                        .attr('width', 50)
+                        .attr('height', 25)
+                        .attr('fill', choropleth.unSelectYearFill)
+                        .attr('stroke', 'black')
+                        .attr('stroke-width', 2)
+                        .on('click', adjustYear)
+
+                    yearContainer.append('text')
+                        .attr('text-anchor', 'middle')
+                        .attr('year', currYear)
+                        .attr('x', 50 + (j * 55))
+                        .attr('y', 42)
+                        .html(`${currYear}`)
+                        .style('user-select', 'none')
+                        .on('click', adjustYear)
+                    j++
+                }
+
+                // Highlight the current default year.
+                d3.select(`#Y${currSelectedYear}`)
+                    .attr('fill', choropleth.selectYearFill)
+
+
+
+
+                // Set up the projection and its mapping to the display
+                let projection = d3.geoEquirectangular();
+                    projection.fitSize([choroplethContainer.width * choropleth.stateWidthPer, choroplethContainer.height * choropleth.stateHeightPer], geojson);
+
+                // Create an SVG path generator
+                let generator = d3.geoPath()
+                    .projection(projection);
+
+                // Add the paths to the plot. The features key can hold multiple path data
+                // which is iterated through in the following code
+                // The generator reads the needed geometry for the whole state, which
+                // is a set of polygons - see the data file and its structure.
+                subContainer.selectAll('paths')
+                    .data(geojson.features)
+                    .enter()
+                    .append('path')
+                    .attr('d', generator)
+                    .attr('state', (d) => d.properties.NAME)
+                    .attr('class', "choroMap")
+                    .attr('stroke', choropleth.stateInitialBorderColor)
+                    .attr('fill', choropleth.selectYearFill)
+                    .attr('stroke-width', choropleth.stateInitialColor)
+                    .attr('transform', `translate(${choropleth.stateXShift},${choropleth.stateYShift})`)
+                    .on('click', changeHBars)
+
+                // Alaska
+                subContainer
+                    .append('rect')
+                    .attr('state', "Alaska")
+                    .attr('class', "choroMap")
+                    .attr('x', 10)
+                    .attr('y', 500)
+                    .attr('width', 100)
+                    .attr('height', 100)
+                    .attr('stroke', choropleth.stateInitialBorderColor)
+                    .attr('fill', choropleth.selectYearFill)
+                    .attr('stroke-width', choropleth.stateInitialColor)
+                    .on('click', changeHBars)
+
+                // Label for Alaska
+                subContainer
+                    .append('text')
+                    .attr('font-size', "1em")
+                    .attr('x', 35)
+                    .attr('y', 495)
+                    .html(`Alaska`)
+
+                // Hawaii
+                subContainer
+                    .append('rect')
+                    .attr('state', "Hawaii")
+                    .attr('class', "choroMap")
+                    .attr('x', 120)
+                    .attr('y', 500)
+                    .attr('width', 50)
+                    .attr('height', 50)
+                    .attr('stroke', choropleth.stateInitialBorderColor)
+                    .attr('fill', choropleth.selectYearFill)
+                    .attr('stroke-width', choropleth.stateInitialColor)
+                    .on('click', changeHBars)
+
+                // Label for Hawaii
+                subContainer
+                    .append('text')
+                    .attr('font-size', "1em")
+                    .attr('x', 120)
+                    .attr('y', 495)
+                    .html(`Hawaii`)
+
+                // District of Colombia
+                subContainer
+                    .append('rect')
+                    .attr('state', "District of Columbia")
+                    .attr('class', "choroMap")
+                    .attr('x', 180)
+                    .attr('y', 500)
+                    .attr('width', 25)
+                    .attr('height', 25)
+                    .attr('stroke', choropleth.stateInitialBorderColor)
+                    .attr('fill', choropleth.selectYearFill)
+                    .attr('stroke-width', choropleth.stateInitialColor)
+                    .on('click', changeHBars)
+
+                // Label for District of Colombia
+                subContainer
+                    .append('text')
+                    .attr('font-size', "1em")
+                    .attr('x', 180)
+                    .attr('y', 495)
+                    .html(`DC`)
+            }
+
+            // Function by which to draw the decomposed outgoing horizontal bar chart.
+            function drawSelectOutgoingHBar(selectedState=defaultValues.chosenState, selectedYear=defaultValues.chosenYear) {
+
+                // Easy way to choose the container for the HBar.
+                const chosenContainer = selectedOutgoingHBarContainer
+
+                // Prepare the sub-container for the choropleth.
+                let subContainer = prepareSubContainer(chosenContainer)
+
+                // Initialize an array that will hold the information we seek.
+                let dataArray = []
+
+                // Retrieve the snapshot that contains the decomposed list of what states people left to.
+                let currSnapshot = visData.get(selectedState).get(selectedYear)
+
+                // Iterate through each entry in the outgoing map.
+                currSnapshot.leftToStates.forEach((value, state) => {
+                    dataArray.push([
+                        state, // State name
+                        value, // Value of people leaving.
+                        Math.round((value / currSnapshot.leftToStatesTotal) * 10000) / 100 // Percentage of people leaving relative to the number of people who have left.
+                    ])
+                })
+
+                // Sort the array in descending order.
+                dataArray = d3.sort(dataArray, (d1, d2) => d3.descending(d1[2], d2[2]))
+
+                const xAxisMin =  chosenContainer.xOffset + generalHBar.xOffset
+                const xAxisMax = chosenContainer.xOffset + generalHBar.xOffset + generalHBar.xAxisSize
+
+
+                // Find the max of the percentages and make sure it is always an even number that is above the max domain.
+                let highestDomain = Math.round(d3.max(dataArray, (data) => data[2])) + 1
+                if (highestDomain % 2 === 1) highestDomain++
+
+                // Create the X scale and X axis for the bar chart.
+                const xScale = d3.scaleLinear()
+                    .domain([0, highestDomain])
+                    .range([xAxisMin, xAxisMax])
+
+                // Place the X axis.
+                subContainer.append('g')
+                    // Move the X axis.
+                    .attr('transform', `translate(${0}, ${chosenContainer.yOffset + chosenContainer.height - generalHBar.y2Offset})`)
+                    .call(d3.axisBottom(xScale))
+
+                // Draw grey lines for the H bar graph.
+                for (let i = highestDomain; i >= 0; i -= 2){
+                    subContainer
+                        .append('line')
+                        .attr('x1', xAxisMin + (xAxisMax - xScale(i)))
+                        .attr('y1', chosenContainer.yOffset + generalHBar.y1Offset)
+                        .attr('x2', xAxisMin + (xAxisMax - xScale(i)))
+                        .attr('y2', chosenContainer.yOffset + chosenContainer.height - generalHBar.y2Offset)
+                        .attr('stroke', `rgb(100,100,100)`)
+                        .attr('opacity', 0.2)
+                }
+
+                // Fill in the data for each rectangle.
+                subContainer
+                    .append('g')
+                    .selectAll('rect')
+                    .data(dataArray)
+                    .enter()
+                    .append('rect')
+                    .attr('x', xAxisMin)
+                    .attr('y', (d, i) => (chosenContainer.yOffset + generalHBar.y1Offset) + (i * generalHBar.barSpace))
+                    .attr('width', (d) => generalHBar.xAxisSize - (xAxisMax - xScale(d[2])))
+                    .attr('height', generalHBar.barHeight)
+                    .attr('fill', `rgb(0,0,200)`)
+
+                // Label each bar with the state name and a percentage.
+                dataArray.forEach((entry, idx) => {
+
+                    // State names for each bar
+                    subContainer
+                        .append('text')
+                        .attr('text-anchor', "end")
+                        .attr('font-size', "0.54em")
+                        .attr('x', xAxisMin + generalHBar.stateTextXOffset)
+                        .attr('y', (chosenContainer.yOffset + generalHBar.y1Offset) + (idx * generalHBar.barSpace) + 6)
+                        .html(`${entry[0]}`)
+
+                    // Percentages for each bar
+                    subContainer
+                        .append('text')
+                        .attr('text-anchor', "start")
+                        .attr('font-size', "0.54em")
+                        .attr('x', xAxisMin + generalHBar.xAxisSize - (xAxisMax - xScale(entry[2])) + 2)
+                        .attr('y', (chosenContainer.yOffset + generalHBar.y1Offset) + (idx * generalHBar.barSpace) + 7)
+                        .html(`${entry[2]} %`)
+                })
+
+                // Draw the main line on the graph.
+                subContainer
+                    .append('line')
+                    .attr('x1', xAxisMin)
+                    .attr('y1', chosenContainer.yOffset + generalHBar.y1Offset)
+                    .attr('x2', xAxisMin)
+                    .attr('y2', chosenContainer.yOffset + chosenContainer.height - generalHBar.y2Offset)
+                    .attr('stroke', `rgb(0,0,0)`)
+
+                subContainer
+                    .append('text')
+                        .attr('font-size', "0.7em")
+                        .attr('x', xAxisMin - 20)
+                        .attr('y', chosenContainer.yOffset + generalHBar.y1Offset - 5)
+                        .html(`STATE: ${selectedState} - YEAR: ${selectedYear} - OUTGOING POP: ${new Intl.NumberFormat().format((currSnapshot.leftToStatesTotal))}`)
+
+
+
+            }
+
+            // Function by which to draw the decomposed incoming horizontal bar chart.
+            function drawSelectIncomingHBar(selectedState=defaultValues.chosenState, selectedYear=defaultValues.chosenYear) {
+
+                // Easy way to choose the container for the HBar.
+                const chosenContainer = selectedIncomingHBarContainer
+
+                // Prepare the sub-container for the incoming horizontal bar chart.
+                let subContainer = prepareSubContainer(chosenContainer)
+
+                // Initialize an array that will hold the information we seek.
+                let dataArray = []
+
+                // Retrieve the snapshot that contains the decomposed list of what states people came from.
+                let currSnapshot = visData.get(selectedState).get(selectedYear)
+
+                // Iterate through each entry in the incoming map.
+                currSnapshot.arrivedFromStates.forEach((value, state) => {
+                    dataArray.push([
+                        state, // State name
+                        value, // Value of people entering.
+                        Math.round((value / currSnapshot.fromDiffStatePop) * 10000) / 100 // Percentage of people arriving relative to the number of people who have arrived.
+                    ])
+                })
+
+                // Sort the array in descending order.
+                dataArray = d3.sort(dataArray, (d1, d2) => d3.descending(d1[2], d2[2]))
+
+                const xAxisMin =  chosenContainer.xOffset + generalHBar.xOffset
+                const xAxisMax = chosenContainer.xOffset + generalHBar.xOffset + generalHBar.xAxisSize
+
+                // Find the max of the percentages and make sure it is always an even number that is above the max domain.
+                let highestDomain = Math.round(d3.max(dataArray, (data) => data[2])) + 1
+                if (highestDomain % 2 === 1) highestDomain++
+
+                // Create the X scale and X axis for the bar chart.
+                const xScale = d3.scaleLinear()
+                    .domain([0, highestDomain])
+                    .range([xAxisMin, xAxisMax])
+
+                // Place the X axis.
+                subContainer.append('g')
+                    // Move the X axis.
+                    .attr('transform', `translate(${0}, ${chosenContainer.yOffset + chosenContainer.height - generalHBar.y2Offset})`)
+                    .call(d3.axisBottom(xScale))
+
+                // Draw grey lines for the H bar graph.
+                for (let i = highestDomain; i >= 0; i -= 2){
+                    subContainer
+                        .append('line')
+                        .attr('x1', xAxisMin + (xAxisMax - xScale(i)))
+                        .attr('y1', chosenContainer.yOffset + generalHBar.y1Offset)
+                        .attr('x2', xAxisMin + (xAxisMax - xScale(i)))
+                        .attr('y2', chosenContainer.yOffset + chosenContainer.height - generalHBar.y2Offset)
+                        .attr('stroke', `rgb(100,100,100)`)
+                        .attr('opacity', 0.2)
+                }
+
+                // Fill in the data for each rectangle.
+                subContainer
+                    .append('g')
+                    .selectAll('rect')
+                    .data(dataArray)
+                    .enter()
+                    .append('rect')
+                    .attr('x', xAxisMin)
+                    .attr('y', (d, i) => (chosenContainer.yOffset + generalHBar.y1Offset) + (i * generalHBar.barSpace))
+                    .attr('width', (d) => generalHBar.xAxisSize - (xAxisMax - xScale(d[2])))
+                    .attr('height', generalHBar.barHeight)
+                    .attr('fill', `rgb(0,200,0)`)
+
+                // Label each bar with the state name and a percentage.
+                dataArray.forEach((entry, idx) => {
+                    // State names for each bar
+                    subContainer
+                        .append('text')
+                        .attr('text-anchor', "end")
+                        .attr('font-size', "0.54em")
+                        .attr('x', xAxisMin + generalHBar.stateTextXOffset)
+                        .attr('y', (chosenContainer.yOffset + generalHBar.y1Offset) + (idx * generalHBar.barSpace) + 6)
+                        .html(`${entry[0]}`)
+
+                    // Percentages for each bar
+                    subContainer
+                        .append('text')
+                        .attr('text-anchor', "start")
+                        .attr('font-size', "0.54em")
+                        .attr('x', xAxisMin + generalHBar.xAxisSize - (xAxisMax - xScale(entry[2])) + 2)
+                        .attr('y', (chosenContainer.yOffset + generalHBar.y1Offset) + (idx * generalHBar.barSpace) + 7)
+                        .html(`${entry[2]} %`)
+                })
+
+                // Draw the main line on the graph.
+                subContainer
+                    .append('line')
+                    .attr('x1', xAxisMin)
+                    .attr('y1', chosenContainer.yOffset + generalHBar.y1Offset)
+                    .attr('x2', xAxisMin)
+                    .attr('y2', chosenContainer.yOffset + chosenContainer.height - generalHBar.y2Offset)
+                    .attr('stroke', `rgb(0,0,0)`)
+
+                subContainer
+                    .append('text')
+                        .attr('font-size', "0.7em")
+                        .attr('x', xAxisMin - 20)
+                        .attr('y', chosenContainer.yOffset + generalHBar.y1Offset - 5)
+                        .html(`STATE: ${selectedState} - YEAR: ${selectedYear} - INCOMING POP: ${new Intl.NumberFormat().format((currSnapshot.fromDiffStatePop))}`)
+
+
+            }
+
+            // Function by which to draw the aggregated outgoing horizontal bar chart.
+            function drawUSOutgoingHBar(selectedYear=defaultValues.chosenYear) {
+
+                // Easy way to choose the container for the HBar.
+                const chosenContainer = USOutgoingHBarContainer
+
+                // Prepare the sub-container for the choropleth.
+                let subContainer = prepareSubContainer(chosenContainer)
+
+                // Initialize an array that will hold the information we seek.
+                let dataArray = []
+
+                // Iterating through the visData, we extract information from each state corresponding to the selected year.
+                visData.forEach((currYearMap) => {
+                    let currSnapshot = currYearMap.get(selectedYear)
+                    dataArray.push([
+                        currSnapshot.state, // Name of the state
+                        currSnapshot.leftToStatesTotal, // Total number of people who left their state
+                        currSnapshot.leftToStatesPer]) // Percentage of people who left their state over the number of people who are still there.
+                })
+
+                // Sort the array in descending order.
+                dataArray = d3.sort(dataArray, (d1, d2) => d3.descending(d1[2], d2[2]))
+
+                const xAxisMin =  chosenContainer.xOffset + generalHBar.xOffset
+                const xAxisMax = chosenContainer.xOffset + generalHBar.xOffset + generalHBar.xAxisSize
+
+
+                // Find the max of the percentages and make sure it is always an even number that is above the max domain.
+                let highestDomain = Math.round(d3.max(dataArray, (data) => data[2])) + 1
+                if (highestDomain % 2 === 1) highestDomain++
+
+                // Create the X scale and X axis for the bar chart.
+                const xScale = d3.scaleLinear()
+                    .domain([0, highestDomain])
+                    .range([xAxisMin, xAxisMax])
+
+                // Place the X axis.
+                subContainer.append('g')
+                    // Move the X axis.
+                    .attr('transform', `translate(${0}, ${chosenContainer.yOffset + chosenContainer.height - generalHBar.y2Offset})`)
+                    .call(d3.axisBottom(xScale))
+
+                // Draw grey lines for the H bar graph.
+                for (let i = highestDomain; i >= 0; i -= 2){
+                    subContainer
+                        .append('line')
+                        .attr('x1', xAxisMin + (xAxisMax - xScale(i)))
+                        .attr('y1', chosenContainer.yOffset + generalHBar.y1Offset)
+                        .attr('x2', xAxisMin + (xAxisMax - xScale(i)))
+                        .attr('y2', chosenContainer.yOffset + chosenContainer.height - generalHBar.y2Offset)
+                        .attr('stroke', `rgb(100,100,100)`)
+                        .attr('opacity', 0.2)
+                }
+
+                // Fill in the data for each rectangle.
+                subContainer
+                    .append('g')
+                    .selectAll('rect')
+                    .data(dataArray)
+                    .enter()
+                    .append('rect')
+                    .attr('x', xAxisMin)
+                    .attr('y', (d, i) => (chosenContainer.yOffset + generalHBar.y1Offset) + (i * generalHBar.barSpace))
+                    .attr('width', (d) => generalHBar.xAxisSize - (xAxisMax - xScale(d[2])))
+                    .attr('height', generalHBar.barHeight)
+                    .attr('fill', `rgb(0,0,200)`)
+
+                // Label each bar with the state name and a percentage.
+                dataArray.forEach((entry, idx) => {
+                    // State names for each bar
+                    subContainer
+                        .append('text')
+                        .attr('text-anchor', "end")
+                        .attr('font-size', "0.54em")
+                        .attr('x', xAxisMin + generalHBar.stateTextXOffset)
+                        .attr('y', (chosenContainer.yOffset + generalHBar.y1Offset) + (idx * generalHBar.barSpace) + 6)
+                        .html(`${entry[0]}`)
+
+                    // Percentages for each bar
+                    subContainer
+                        .append('text')
+                        .attr('text-anchor', "start")
+                        .attr('font-size', "0.54em")
+                        .attr('x', xAxisMin + generalHBar.xAxisSize - (xAxisMax - xScale(entry[2])) + 2)
+                        .attr('y', (chosenContainer.yOffset + generalHBar.y1Offset) + (idx * generalHBar.barSpace) + 7)
+                        .html(`${entry[2]} %`)
+                })
+
+                // Draw the main line on the graph.
+                subContainer
+                    .append('line')
+                    .attr('x1', xAxisMin)
+                    .attr('y1', chosenContainer.yOffset + generalHBar.y1Offset)
+                    .attr('x2', xAxisMin)
+                    .attr('y2', chosenContainer.yOffset + chosenContainer.height - generalHBar.y2Offset)
+                    .attr('stroke', `rgb(0,0,0)`)
+
+                subContainer
+                    .append('text')
+                        .attr('font-size', "0.7em")
+                        .attr('x', xAxisMin - 20)
+                        .attr('y', chosenContainer.yOffset + generalHBar.y1Offset - 5)
+                        .html(`(% of State Pop that Emigrated to diff. state) YEAR: ${selectedYear}`)
+            }
+
+            // Function by which to draw the aggregated incoming horizontal bar chart.
+            function drawUSIncomingHBar(selectedYear=defaultValues.chosenYear) {
+
+                // Easy way to choose the container for the HBar.
+                const chosenContainer = USIncomingHBarContainer
+
+                // Prepare the sub-container for the incoming horizontal bar chart.
+                let subContainer = prepareSubContainer(chosenContainer)
+
+                // Initialize an array that will hold the information we seek.
+                let dataArray = [] //asdasd
+
+                // Iterating through the visData, we extract information from each state corresponding to the selected year.
+                visData.forEach((currYearMap) => {
+                    let currSnapshot = currYearMap.get(selectedYear)
+                    dataArray.push([
+                        currSnapshot.state, // Name of the state
+                        currSnapshot.fromDiffStatePop, // Total number of people who entered the state
+                        currSnapshot.fromDiffStatePer]) // Percentage of people who entered the state over the number of people who are already there
+                })
+
+                // Sort the array in descending order.
+                dataArray = d3.sort(dataArray, (d1, d2) => d3.descending(d1[2], d2[2]))
+
+                const xAxisMin =  chosenContainer.xOffset + generalHBar.xOffset
+                const xAxisMax = chosenContainer.xOffset + generalHBar.xOffset + generalHBar.xAxisSize
+
+
+                // Find the max of the percentages and make sure it is always an even number that is above the max domain.
+                let highestDomain = Math.round(d3.max(dataArray, (data) => data[2])) + 1
+                if (highestDomain % 2 === 1) highestDomain++
+
+                // Create the X scale and X axis for the bar chart.
+                const xScale = d3.scaleLinear()
+                    .domain([0, highestDomain])
+                    .range([xAxisMin, xAxisMax])
+
+                // Place the X axis.
+                subContainer.append('g')
+                    // Move the X axis.
+                    .attr('transform', `translate(${0}, ${chosenContainer.yOffset + chosenContainer.height - generalHBar.y2Offset})`)
+                    .call(d3.axisBottom(xScale))
+
+                // Draw grey lines for the H bar graph.
+                for (let i = highestDomain; i >= 0; i -= 2){
+                    subContainer
+                        .append('line')
+                        .attr('x1', xAxisMin + (xAxisMax - xScale(i)))
+                        .attr('y1', chosenContainer.yOffset + generalHBar.y1Offset)
+                        .attr('x2', xAxisMin + (xAxisMax - xScale(i)))
+                        .attr('y2', chosenContainer.yOffset + chosenContainer.height - generalHBar.y2Offset)
+                        .attr('stroke', `rgb(100,100,100)`)
+                        .attr('opacity', 0.2)
+                }
+
+                // Fill in the data for each rectangle.
+                subContainer
+                    .append('g')
+                    .selectAll('rect')
+                    .data(dataArray)
+                    .enter()
+                    .append('rect')
+                    .attr('x', xAxisMin)
+                    .attr('y', (d, i) => (chosenContainer.yOffset + generalHBar.y1Offset) + (i * generalHBar.barSpace))
+                    .attr('width', (d) => generalHBar.xAxisSize - (xAxisMax - xScale(d[2])))
+                    .attr('height', generalHBar.barHeight)
+                    .attr('fill', `rgb(0,200,0)`)
+
+                // Label each bar with the state name and a percentage.
+                dataArray.forEach((entry, idx) => {
+                    // State names for each bar
+                    subContainer
+                        .append('text')
+                        .attr('text-anchor', "end")
+                        .attr('font-size', "0.54em")
+                        .attr('x', xAxisMin + generalHBar.stateTextXOffset)
+                        .attr('y', (chosenContainer.yOffset + generalHBar.y1Offset) + (idx * generalHBar.barSpace) + 6)
+                        .html(`${entry[0]}`)
+
+                    // Percentages for each bar
+                    subContainer
+                        .append('text')
+                        .attr('text-anchor', "start")
+                        .attr('font-size', "0.54em")
+                        .attr('x', xAxisMin + generalHBar.xAxisSize - (xAxisMax - xScale(entry[2])) + 2)
+                        .attr('y', (chosenContainer.yOffset + generalHBar.y1Offset) + (idx * generalHBar.barSpace) + 7)
+                        .html(`${entry[2]} %`)
+                })
+
+                // Draw the main line on the graph.
+                subContainer
+                    .append('line')
+                    .attr('x1', xAxisMin)
+                    .attr('y1', chosenContainer.yOffset + generalHBar.y1Offset)
+                    .attr('x2', xAxisMin)
+                    .attr('y2', chosenContainer.yOffset + chosenContainer.height - generalHBar.y2Offset)
+                    .attr('stroke', `rgb(0,0,0)`)
+
+                subContainer
+                    .append('text')
+                        .attr('font-size', "0.7em")
+                        .attr('x', xAxisMin - 20)
+                        .attr('y', chosenContainer.yOffset + generalHBar.y1Offset - 5)
+                        .html(`(% of State Pop that Immigrated to the state) YEAR: ${selectedYear}`)
+            }
+
+            // This function prepares and displays the passed subContainer on the SVG.
+            function prepareSubContainer(passedContainer) {
+
+                // Selecting the SVG, append the passed container to the SVG.
+                const subContainer = d3.select(`#${svg.id}`)
+                    .append('g')
+                    .attr('id', passedContainer.gId)
+
+                // Append the rect to the sub-container that will define its background.
+                subContainer.append('rect')
+                    .attr('x', passedContainer.xOffset)
+                    .attr('y', passedContainer.yOffset)
+                    .attr('width', passedContainer.width)
+                    .attr('height', passedContainer.height)
+                    .attr('fill', passedContainer.backgroundColor)
+                    .attr('stroke', passedContainer.borderColor)
+
+                return subContainer
+            }
+
+            function changeHBars(evt) {
+
+                // Retrieve the state name from the underlying data.
+                const selectedState = evt.target.attributes.state.nodeValue
+
+                currChosenState = selectedState
+
+                // Adjust the start and end years
+                currStartYearSelection = parseInt(document.getElementById("parking-type-selector").value);
+                currEndYearSelection = parseInt(document.getElementById("parking-type-selector2").value);
+
+                // Thanos Snap all plots
+                d3.selectAll(`.plot`).remove()
+
+                // Clear the containers holding the current information for the selected HBar
+                clearHSubContainers()
+
+                // Redraw the selectOutgoingHBar.
+                drawSelectOutgoingHBar(selectedState)
+
+                // Redraw the selectIncomingHBar.
+                drawSelectIncomingHBar(selectedState)
+
+                // Redraw the crime data
+                crimeLineGraph(currChosenState, currStartYearSelection, currEndYearSelection)
+
+                // Redraw the CoL data.
+                CoLLineGraph(currChosenState, currStartYearSelection, currEndYearSelection)
+
+                // Redraw the employment data.
+                employmentGraph(currChosenState, currStartYearSelection, currEndYearSelection)
+
+                // Initialize the requestedProperty.
+                let requestedProperty;
+                let colorScale;
+
+                // Switch statement that dynamically changes which property to pull from the visData and what color
+                // scale to use for it.
+                switch(currChosenStat){
+                    case 'Violent-Crime':
+                        requestedProperty = "violentCrimeCapita"
+                        colorScale = d3.scaleLinear(['rgb(255,255,255)', 'rgb(175,25,25)'])
+                        break;
+                    case 'Property-Crime':
+                        requestedProperty = "propertyCrimeCapita"
+                        colorScale = d3.scaleLinear(['rgb(255,255,255)', 'rgb(75,0,130)'])
+                        break;
+                    case 'Cost-Of-Living':
+                        requestedProperty = "medianAnnualCost"
+                        colorScale = d3.scaleLinear(['rgb(255,255,255)', 'rgb(51,51,0)'])
+                        break;
+                    case 'Emigrated':
+                        requestedProperty = "leftToStatesPer"
+                        colorScale = d3.scaleLinear(['rgb(255,255,255)', 'rgb(0,0,200)'])
+                        break;
+                    case 'Immigrated':
+                        requestedProperty = "fromDiffStatePer"
+                        colorScale = d3.scaleLinear(['rgb(255,255,255)', 'rgb(0,125,0)'])
+                        break;
+                }
+
+                // Initialize the dataArray
+                const dataArray = []
+
+                // Extract our the requested property from each state according to the current year being focused.
+                visData.forEach((years) => {
+
+                    // Construct the dataArray with snapshots matching the current selected year.
+                    const currSnapshot = years.get(currSelectedYear)
+
+                    // Push a subset of the information onto the stack.
+                    dataArray.push([currSnapshot.state, [currSnapshot[requestedProperty], null]])
+                })
+
+                // Find the max value in the dataArray
+                const maxValue = d3.max(dataArray, (data) => data[1][0])
+                const minValue = d3.min(dataArray, (data) => data[1][0])
+
+                // Used to normalize the value on the dataArray.
+                const normalize = (input) => (input - minValue)/(maxValue - minValue)
+
+                // Adjust the third entry in every dataArray to be its normalized value for the year across the states.
+                dataArray.forEach((array) => array[1][1] = normalize(array[1][0]))
+
+                // Convert the dataArray into a map for ease of access into the information.
+                const dataMap = new Map(dataArray)
+
+                // Grab the nodes corresponding to all the states.
+                let mapList = d3.selectAll(`[state]`)['_groups'][0]
+
+                // For each node, adjust the color based on the normalized value requested.
+                mapList.forEach((node) => {
+                    node.attributes["fill"].nodeValue = colorScale(dataMap.get(node.attributes["state"].nodeValue)[1])
+                })
+
+                // last line.
+                evt.target.attributes.fill.nodeValue = choropleth.selectYearFill
+            }
+
+            function readjustChoroplethColor() {
+                // Initialize the requestedProperty.
+                let requestedProperty;
+                let colorScale;
+
+                // Switch statement that dynamically changes which property to pull from the visData and what color
+                // scale to use for it.
+                switch(currChosenStat){
+                    case 'Violent-Crime':
+                        requestedProperty = "violentCrimeCapita"
+                        colorScale = d3.scaleLinear(['rgb(255,255,255)', 'rgb(175,25,25)'])
+                        break;
+                    case 'Property-Crime':
+                        requestedProperty = "propertyCrimeCapita"
+                        colorScale = d3.scaleLinear(['rgb(255,255,255)', 'rgb(75,0,130)'])
+                        break;
+                    case 'Cost-Of-Living':
+                        requestedProperty = "medianAnnualCost"
+                        colorScale = d3.scaleLinear(['rgb(255,255,255)', 'rgb(51,51,0)'])
+                        break;
+                    case 'Emigrated':
+                        requestedProperty = "leftToStatesPer"
+                        colorScale = d3.scaleLinear(['rgb(255,255,255)', 'rgb(0,0,200)'])
+                        break;
+                    case 'Immigrated':
+                        requestedProperty = "fromDiffStatePer"
+                        colorScale = d3.scaleLinear(['rgb(255,255,255)', 'rgb(0,125,0)'])
+                        break;
+                }
+
+                // Initialize the dataArray
+                const dataArray = []
+
+                // Extract our the requested property from each state according to the current year being focused.
+                visData.forEach((years) => {
+
+                    // Construct the dataArray with snapshots matching the current selected year.
+                    const currSnapshot = years.get(currSelectedYear)
+
+                    // Push a subset of the information onto the stack.
+                    dataArray.push([currSnapshot.state, [currSnapshot[requestedProperty], null]])
+                })
+
+                // Find the max value in the dataArray
+                const maxValue = d3.max(dataArray, (data) => data[1][0])
+                const minValue = d3.min(dataArray, (data) => data[1][0])
+
+                // Used to normalize the value on the dataArray.
+                const normalize = (input) => (input - minValue)/(maxValue - minValue)
+
+                // Adjust the third entry in every dataArray to be its normalized value for the year across the states.
+                dataArray.forEach((array) => array[1][1] = normalize(array[1][0]))
+
+                // Convert the dataArray into a map for ease of access into the information.
+                const dataMap = new Map(dataArray)
+
+                // Grab the nodes corresponding to all the states.
+                let mapList = d3.selectAll(`[state]`)['_groups'][0]
+
+                // For each node, adjust the color based on the normalized value requested.
+                mapList.forEach((node) => {
+                    if (currChosenState !== node.attributes["state"].nodeValue) node.attributes["fill"].nodeValue = colorScale(dataMap.get(node.attributes["state"].nodeValue)[1])
+                })
+
+                // Grab the nodes corresponding to the gradient.
+                let gradientList = d3.selectAll(`.gradient`)['_groups'][0]
+
+                // For each node, adjust the color based on the normalized value requested.
+                gradientList.forEach((node) => {
+                    node.attributes["fill"].nodeValue = colorScale(node.attributes["value"].nodeValue)
+                })
+            }
+
+            function adjustYear(evt) {
+
+                // Grab the nodes corresponding to all the states.
+                let yearList = d3.selectAll(`rect[year]`)['_groups'][0]
+
+                // Grey out all the years.
+                yearList.forEach((node) => {
+                    node.attributes["fill"].nodeValue = choropleth.unSelectYearFill
+                })
+
+                // Adjust the curr selected year to reflect what has been selected.
+                currSelectedYear = parseInt(evt.target.attributes.year.nodeValue)
+
+                // Adjust the fill color of the selected button to indicate that it is highlighted.
+                d3.select(`#Y${currSelectedYear}`)
+                    .attr('fill',choropleth.selectYearFill)
+
+                // Clear all H Charts
+                clearAllHSub()
+
+                // redraw the selectOutgoingHBar.
+                drawSelectOutgoingHBar(currChosenState, currSelectedYear)
+
+                // redraw the selectIncomingHBar.
+                drawSelectIncomingHBar(currChosenState, currSelectedYear)
+
+                // redraw the USOutgoingHBar.
+                drawUSOutgoingHBar(currSelectedYear)
+
+                // redraw the USIncomingHBar.
+                drawUSIncomingHBar(currSelectedYear)
+
+                // redraw the choropleth map to match the new year selected.
+                readjustChoroplethColor()
+
+            }
+
+            function adjustChoropleth(evt) {
+
+                // Grab the nodes corresponding to all the states.
+                let statList = d3.selectAll(`rect[category]`)['_groups'][0]
+
+                // Grey out all the years.
+                statList.forEach((node) => {
+                    node.attributes["fill"].nodeValue = choropleth.unSelectYearFill
+                })
+
+                // Adjust the curr stat to reflect what has been selected.
+                currChosenStat = evt.target.attributes.category.nodeValue
+
+                // Adjust the fill color of the selected button to indicate that it is highlighted.
+                d3.select(`#${currChosenStat}`)
+                    .attr('fill',choropleth.selectYearFill)
+
+                // redraw the choropleth map to match the new year selected.
+                readjustChoroplethColor()
+
+            }
+
+            function clearHSubContainers() {
+                d3.select(`#select-outgoing-Migration`).remove()
+                d3.select(`#select-incoming-Migration`).remove()
+
+            }
+
+            function clearAllHSub() {
+                d3.select(`#select-outgoing-Migration`).remove()
+                d3.select(`#select-incoming-Migration`).remove()
+                d3.select(`#US-outgoing-Migration`).remove()
+                d3.select(`#US-incoming-Migration`).remove()
+
+            }
+
+            
+
+            // Function to create line graphs of crime per 100,000 people
+            function CoLLineGraph(selectedState,  startYear, endYear){
+                let svg = d3.select('svg');
+                let plot = svg.append('g')
+                    .attr('class', 'plot');
+
+                //Incase someone selects a start year greater than end year
+                if(startYear > endYear){
+                    endYear = startYear;
+                }
+
+                // Length of our data used in years and arrays for paths
+                var len = endYear - startYear;
+                const costOfLiving = [];
+                const migrationIn = [];
+                const migrationOut = [];
+
+
+                // Loading path arrays from selected parameters in function
+                for(let i = 0; i <= len; i++){
+                    var year = startYear + i;
+
+                    // Load median annual cost path data and migration data
+                    costOfLiving.push({
+                        x: year,
+                        y: visData.get(selectedState).get(year).medianAnnualCost
+                    });
+
+                    migrationIn.push({
+                        x: year,
+                        y: (visData.get(selectedState).get(year).fromAbroadPop + visData.get(selectedState).get(year).fromDiffStatePop)
+                    });
+
+                    migrationOut.push({
+                        x: year,
+                        y: visData.get(selectedState).get(year).leftToStatesTotal
+                    });
+                }
+
+                // Draws the graph, xLocation is the start point of x-Axis, yLocation is the start of y-axis
+                function drawGraph(arr, xLocation, yLocation){
+                    if(arr.length >= 2){
+                        // Scalers based off array max and mins for x (sX) and y (sY)
+                        let sX = d3.scaleLinear()
+                            .domain([d3.max(arr, (d) => d.x), d3.min(arr, (d) => d.x)])
+                            .range([350, 0]);
+
+                        let sY = d3.scaleLinear()
+                            .domain([d3.max(arr, (d) => d.y), d3.min(arr, (d) => d.y)])
+                            .range([0, 200]);
+
+
+                        // Creates line for path
+                        var line = d3.line()
+                            .x((d) => sX(d.x))
+                            .y((d) => sY(d.y));
+
+                        // Set up and plot x and y axis with scaler
+                        let xAxis = d3.axisBottom(sX).tickFormat(d => d % 100);
+                        let yAxis = d3.axisLeft(sY);
+
+                        plot.append('g')
+                            .attr('transform', 'translate('+xLocation+', '+(yLocation+205)+')')
+                            .call(xAxis);
+
+                        plot.append('g')
+                            .attr('transform', 'translate('+(xLocation-5)+', '+yLocation+')')
+                            .call(yAxis);
+
+                        // Draws path based on array passed in at xLocation and yLocation for crime
+                        plot.append('path')
+                            .attr('transform', 'translate('+xLocation+', '+yLocation+')')
+                            .attr('d', line(arr))
+                            .attr('fill', 'none')
+                            .attr('stroke', 'red')
+                            .attr('stroke-width', '1.5px')
+
+                        // Scalers based off migrationIn max and mins for x (mIsX) and y (mIsY)
+                        let mIsX = d3.scaleLinear()
+                            .domain([d3.max(migrationIn, (d) => d.x), d3.min(migrationIn, (d) => d.x)])
+                            .range([350, 0]);
+
+                        let mIsY = d3.scaleLinear()
+                            .domain([d3.max(migrationIn, (d) => d.y), d3.min(migrationIn, (d) => d.y)])
+                            .range([0, 200]);
+
+
+                        // Creates line for migrationIn path
+                        var mIline = d3.line()
+                            .x((d) => mIsX(d.x))
+                            .y((d) => mIsY(d.y));
+
+                        // Draws path based on migrationIn array to compare migration of incoming population
+                        plot.append('path')
+                            .attr('transform', 'translate('+xLocation+', '+yLocation+')')
+                            .attr('d', mIline(migrationIn))
+                            .attr('fill', 'none')
+                            .attr('stroke', 'green')
+                            .attr('stroke-width', '1.5px')
+
+                        // Scalers based off migrationOut max and mins for x (mOsX) and y (mOsY)
+                        let mOsX = d3.scaleLinear()
+                            .domain([d3.max(migrationOut, (d) => d.x), d3.min(migrationOut, (d) => d.x)])
+                            .range([350, 0]);
+
+                        let mOsY = d3.scaleLinear()
+                            .domain([d3.max(migrationOut, (d) => d.y), d3.min(migrationOut, (d) => d.y)])
+                            .range([0, 200]);
+
+
+                        // Creates line for migrationOut path
+                        var mOline = d3.line()
+                            .x((d) => mOsX(d.x))
+                            .y((d) => mOsY(d.y));
+
+                        // Draws path based on migrationIn array to compare migration of outgoing population
+                        plot.append('path')
+                            .attr('transform', 'translate('+xLocation+', '+yLocation+')')
+                            .attr('d', mOline(migrationOut))
+                            .attr('fill', 'none')
+                            .attr('stroke', 'blue')
+                            .attr('stroke-width', '1.5px')
+
+                        // y-axis text
+                        plot.append('text')
+                            .attr('x', xLocation - 50)
+                            .attr('y', yLocation + 170)
+                            .attr('transform', 'rotate(-90, '+(xLocation-50)+', '+(yLocation+170)+')')
+                            .style('font-size', '15px')
+                            .text('Median Annual Cost')
+
+                        // x-axis text
+                        plot.append('text')
+                            .attr('x', xLocation + 130)
+                            .attr('y', yLocation + 250)
+                            .style('font-size', '20px')
+                            .text('Year')
+
+                        // Title of graph text
+                        plot.append('text')
+                        .attr('x', xLocation + 100)
+                        .attr('y', yLocation - 15)
+                        .style('font-size', '20px')
+                        .text('Cost of Living')
+
+                        // Legend Text
+                        plot.append('rect')
+                        .attr('x', xLocation)
+                        .attr('y', yLocation + 275)
+                        .attr('width', 300)
+                        .attr('height', 95)
+                        .attr('fill', 'rgb(230, 230, 230)')
+                        .attr('stroke', 'red');
+
+                        plot.append('text')
+                        .attr('x', xLocation + 50)
+                        .attr('y', yLocation + 300)
+                        .style('font-size', '18px')
+                        .style('fill', 'red')
+                        .text('Red: ' + ' Annual Cost of Living ')
+
+                        plot.append('text')
+                        .attr('x', xLocation + 50)
+                        .attr('y', yLocation + 320)
+                        .style('font-size', '18px')
+                        .style('fill', 'green')
+                        .text('Green: ' + ' Migration Into state ')
+
+                        plot.append('text')
+                        .attr('x', xLocation + 50)
+                        .attr('y', yLocation + 340)
+                        .style('font-size', '18px')
+                        .style('fill', 'blue')
+                        .text('Blue: ' + ' Migration Out of state ')
+
+                        plot.append('text')
+                        .attr('x', xLocation + 5)
+                        .attr('y', yLocation + 360)
+                        .style('font-size', '18px')
+                        .style('fill', 'black')
+                        .text('Migration Data is Scaled off CoL Data')
+
+                    }else{
+                        // If there is only one year selected show data instead
+                        plot.append('rect')
+                            .attr('x', xLocation)
+                            .attr('y', yLocation)
+                            .attr('width', 300)
+                            .attr('height', 195)
+                            .attr('fill', 'rgb(230, 230, 230)')
+                            .attr('stroke', 'red');
+
+                        const textData = ['State: ' + selectedState, 'Year: ' + arr[0].x, 'Median Cost: $' + arr[0].y,
+                        'Migration in: ' + migrationIn[0].y, 'Migration out: ' + migrationOut[0].y];
+                        console.log(textData);
+
+                        // Plot the text, style it and space it
+                        const text = plot.append('text')
+                            .attr('x', 0)
+                            .attr('y', yLocation + 20)
+                            .style('font-size', '20px')
+
+                        text.selectAll('tspan')
+                            .data(textData)
+                            .enter().append('tspan')
+                            .attr('x', xLocation + 10)
+                            .attr('dy', (d, i) => (i * 15))
+                            .text(d => d);
+
+                        // Title of stats
+
+                        plot.append('text')
+                        .attr('x', xLocation + 40)
+                        .attr('y', yLocation - 10)
+                        .style('font-size', '20px')
+                        .text('Median Annual Cost Value')
+
+                    }
+
+                }
+                // Calls the function
+                drawGraph(costOfLiving, 1100, 650);
+            }
+
+            function employmentGraph(selectedState,  startYear, endYear){
+                let svg = d3.select('svg');
+                let plot = svg.append('g')
+                    .attr('class', 'plot');
+                let plot2 = svg.append('g')
+                    .attr('class', 'plot');
+
+                //Incase someone selects a start year greater than end year
+                if(startYear > endYear){
+                    endYear = startYear;
+                }
+
+                // Length of our data used in years and arrays for paths
+                var len = endYear - startYear;
+                const employedArr = [];
+                const unemployedArr = [];
+                const migrationIn = [];
+                const migrationOut = [];
+
+
+                // Loading path arrays from selected parameters in function
+                for(let i = 0; i <= len; i++){
+                    var year = startYear + i;
+
+                    // Load median average weather path data and migration data
+                    for(let i = 0; i < 12; i++){
+                        var employed = visData.get(selectedState).get(year).unemploymentInfo[i].employed;
+                        var unemployed = visData.get(selectedState).get(year).unemploymentInfo[i].unemployed;
+                        employedArr.push({
+                            x: ""+(i+1)+"/"+(year%100)+"",
+                            y: employed,
+                            t: `Employed Percentage: ${visData.get(selectedState).get(year).unemploymentInfo[i].percentEmp}%`
+                        });
+                        unemployedArr.push({
+                            x: ""+(i+1)+"/"+(year%100)+"",
+                            y: unemployed,
+                            t: `Unemployed Percentage: ${visData.get(selectedState).get(year).unemploymentInfo[i].percentUnemp}%`
+                        });
+                    }
+
+                    migrationIn.push({
+                        x: year,
+                        y: (visData.get(selectedState).get(year).fromAbroadPop + visData.get(selectedState).get(year).fromDiffStatePop)
+                    });
+
+                    migrationOut.push({
+                        x: year,
+                        y: visData.get(selectedState).get(year).leftToStatesTotal
+                    });
+                }
+
+                // Draws the graph, xLocation is the start point of x-Axis, yLocation is the start of y-axis
+                function drawGraph(arr, xLocation, yLocation){
+                    if(arr.length >= 2*12){
+                        // Scalers based off array time series for x, max and min for y (sY) and scaleBand to get automatic widths
+                        var parseDate = d3.timeParse("%m/%y")
+                        let sX = d3.scaleTime()
+                            .domain([parseDate(arr[0].x), parseDate(arr[arr.length-1].x)])
+                            .range([0, 880]);
+
+                        let sY = d3.scaleLinear()
+                            .domain([d3.max(arr, (d) => d.y), d3.min(arr, (d) => d.y)])
+                            .range([0, 200]);
+
+                        // scale band can be found here https://d3js.org/d3-scale/band
+                        let scaleX = d3.scaleBand()
+                            .domain(arr.map(d => d.x))
+                            .range([0, 880])
+
+                        // Set up and plot x and y axis with scaler
+                        let xAxis = d3.axisBottom(sX).tickFormat(d3.timeFormat("%-m/%y"));
+                        let yAxis = d3.axisLeft(sY);
+
+                        plot.append('g')
+                            .attr('transform', 'translate('+(xLocation)+', '+(yLocation+205)+')')
+                            .call(xAxis);
+
+                        plot.append('g')
+                            .attr('transform', 'translate('+(xLocation)+', '+(yLocation)+')')
+                            .call(yAxis);
+
+                        // Need to select which SVG plot for the barchart plot
+                        if(arr == employedArr){
+                            var plotSelect = plot;
+                        }else{
+                            var plotSelect = plot2;
+                        }
+
+                        var width = 6
+                        // Draws bars based on array passed in at xLocation and yLocation for crime
+                        plotSelect.selectAll('rect')
+                            .data(arr)
+                            .enter()
+                            .append('rect')
+                            .attr('transform', 'translate('+(xLocation)+', '+yLocation+')')
+                            .attr('x', (d) => scaleX(d.x))
+                            .attr('y', (d) => sY(d.y))
+                            .attr('width', scaleX.bandwidth()-2)
+                            .attr('height', (d) => 200 - sY(d.y))
+                            .attr('fill', 'red')
+                            .on('click', displayData)
+
+                        // Scalers based off migrationIn max and mins for x (mIsX) and y (mIsY)
+                        let mIsX = d3.scaleLinear()
+                            .domain([d3.max(migrationIn, (d) => d.x), d3.min(migrationIn, (d) => d.x)])
+                            .range([880, 0]);
+
+                        let mIsY = d3.scaleLinear()
+                            .domain([d3.max(migrationIn, (d) => d.y), d3.min(migrationIn, (d) => d.y)])
+                            .range([0, 200]);
+
+
+                        // Creates line for migrationIn path
+                        var mIline = d3.line()
+                            .x((d) => mIsX(d.x))
+                            .y((d) => mIsY(d.y));
+
+                        // Draws path based on migrationIn array to compare migration of incoming population
+                        plotSelect.append('path')
+                            .attr('transform', 'translate('+xLocation+', '+yLocation+')')
+                            .attr('d', mIline(migrationIn))
+                            .attr('fill', 'none')
+                            .attr('stroke', 'green')
+                            .attr('stroke-width', '1.5px')
+
+                        // Scalers based off migrationOut max and mins for x (mOsX) and y (mOsY)
+                        let mOsX = d3.scaleLinear()
+                            .domain([d3.max(migrationOut, (d) => d.x), d3.min(migrationOut, (d) => d.x)])
+                            .range([880, 0]);
+
+                        let mOsY = d3.scaleLinear()
+                            .domain([d3.max(migrationOut, (d) => d.y), d3.min(migrationOut, (d) => d.y)])
+                            .range([0, 200]);
+
+
+                        // Creates line for migrationOut path
+                        var mOline = d3.line()
+                            .x((d) => mOsX(d.x))
+                            .y((d) => mOsY(d.y));
+
+                        // Draws path based on migrationOut array to compare migration of outgoing population
+                        plotSelect.append('path')
+                            .attr('transform', 'translate('+xLocation+', '+yLocation+')')
+                            .attr('d', mOline(migrationOut))
+                            .attr('fill', 'none')
+                            .attr('stroke', 'blue')
+                            .attr('stroke-width', '1.5px')
+
+
+                        // y-axis text
+                        plot.append('text')
+                            .attr('x', xLocation - 35)
+                            .attr('y', yLocation + 130)
+                            .attr('transform', 'rotate(-90, '+(xLocation-50)+', '+(yLocation+130)+')')
+                            .style('font-size', '20px')
+                            .text('Totals')
+
+                        // x-axis text
+                        plot.append('text')
+                            .attr('x', xLocation + 400)
+                            .attr('y', yLocation + 250)
+                            .style('font-size', '20px')
+                            .text('Month/Year')
+
+                        var title = '';
+                        if(arr == unemployedArr){
+                            // Title of unenployment graph text
+                            title = 'Unemployment Totals';
+                            plot.append('text')
+                            .attr('x', xLocation + 400)
+                            .attr('y', yLocation - 15)
+                            .style('font-size', '20px')
+                            .text('Unemployment By Month')
+
+                            // Legend Text
+                            plot.append('rect')
+                            .attr('x', xLocation)
+                            .attr('y', yLocation + 275)
+                            .attr('width', 350)
+                            .attr('height', 95)
+                            .attr('fill', 'rgb(230, 230, 230)')
+                            .attr('stroke', 'red');
+
+                            plot.append('text')
+                            .attr('x', xLocation + 50)
+                            .attr('y', yLocation + 300)
+                            .style('font-size', '18px')
+                            .style('fill', 'red')
+                            .text('Red: ' + ' Unemployment Totals ')
+
+                            plot.append('text')
+                            .attr('x', xLocation + 50)
+                            .attr('y', yLocation + 320)
+                            .style('font-size', '18px')
+                            .style('fill', 'green')
+                            .text('Green: ' + ' Migration Into state ')
+
+                            plot.append('text')
+                            .attr('x', xLocation + 50)
+                            .attr('y', yLocation + 340)
+                            .style('font-size', '18px')
+                            .style('fill', 'blue')
+                            .text('Blue: ' + ' Migration Out of state ')
+
+                            plot.append('text')
+                            .attr('x', xLocation + 5)
+                            .attr('y', yLocation + 360)
+                            .style('font-size', '18px')
+                            .style('fill', 'black')
+                            .text('Migration Data is Scaled off Employment Data')
+                        }else{
+                            // Title of employment graph text
+                            title = 'Employment Totals';
+                            plot.append('text')
+                            .attr('x', xLocation + 400)
+                            .attr('y', yLocation - 15)
+                            .style('font-size', '20px')
+                            .text('Employment By Month')
+
+                            // Legend Text
+                            plot.append('rect')
+                            .attr('x', xLocation)
+                            .attr('y', yLocation + 275)
+                            .attr('width', 350)
+                            .attr('height', 95)
+                            .attr('fill', 'rgb(230, 230, 230)')
+                            .attr('stroke', 'red');
+
+                            plot.append('text')
+                            .attr('x', xLocation + 50)
+                            .attr('y', yLocation + 300)
+                            .style('font-size', '18px')
+                            .style('fill', 'red')
+                            .text('Red: ' + ' Employment Totals ')
+
+                            plot.append('text')
+                            .attr('x', xLocation + 50)
+                            .attr('y', yLocation + 320)
+                            .style('font-size', '18px')
+                            .style('fill', 'green')
+                            .text('Green: ' + ' Migration Into state ')
+
+                            plot.append('text')
+                            .attr('x', xLocation + 50)
+                            .attr('y', yLocation + 340)
+                            .style('font-size', '18px')
+                            .style('fill', 'blue')
+                            .text('Blue: ' + ' Migration Out of state ')
+
+                            plot.append('text')
+                            .attr('x', xLocation + 5)
+                            .attr('y', yLocation + 360)
+                            .style('font-size', '18px')
+                            .style('fill', 'black')
+                            .text('Migration Data is Scaled off Employment Data')
+
+                        }
+
+                    }else{
+                        // If there is only one year selected show data instead
+                        plot.append('rect')
+                            .attr('x', xLocation)
+                            .attr('y', yLocation)
+                            .attr('width', 300)
+                            .attr('height', 195)
+                            .attr('fill', 'rgb(230, 230, 230)')
+                            .attr('stroke', 'red');
+
+                        var title = '';
+                        var avgTotal = 0;
+                        if(arr == unemployedArr){
+                            title = 'Unemployment Total Avg: ';
+                            avgTotal = d3.mean(unemployedArr, (d) => d.y);
+                            avgTotal = parseInt(avgTotal);
+                        }else{
+                            title = 'Employment Total Avg: ';
+                            title = 'Unemployment Total Avg: ';
+                            avgTotal = d3.mean(employedArr, (d) => d.y);
+                            avgTotal = parseInt(avgTotal);
+                        }
+
+                        const textData = ['State: ' + selectedState, 'Year: ' + '20'+(arr[0].x).slice(-2), ''+title+'' + avgTotal,
+                        'Migration in: ' + migrationIn[0].y, 'Migration out: ' + migrationOut[0].y];
+                        console.log(textData);
+
+                        // Plot the text, style it and space it
+                        const text = plot.append('text')
+                            .attr('x', 0)
+                            .attr('y', yLocation + 20)
+                            .style('font-size', '20px')
+
+                        text.selectAll('tspan')
+                            .data(textData)
+                            .enter().append('tspan')
+                            .attr('x', xLocation + 10)
+                            .attr('dy', (d, i) => (i * 15))
+                            .text(d => d);
+
+                        // Title of stats
+
+                        plot.append('text')
+                        .attr('x', xLocation + 40)
+                        .attr('y', yLocation - 10)
+                        .style('font-size', '20px')
+                        .text('Median Annual Cost Value')
+
+                    }
+
+                }
+                // Calls the function
+                drawGraph(employedArr, 80, 1100);
+                drawGraph(unemployedArr, 1100, 1100)
+            }
+
+            // Event handler that will display the information associated with the selected data point
+            function displayData(evt) {
+
+                // Grab the data from the circle element itself which is the X and Y values of the current dimensions.
+                let employmentData = evt.target["__data__"]
+
+                // Selecting our textbox, we display the information about the point in question.
+                d3.select(`#Emptextbox`)
+                    .html(employmentData.t)
+            }
+        </script>
+    </body>
+</html>
